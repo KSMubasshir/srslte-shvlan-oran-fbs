@@ -117,67 +117,17 @@ pc = portal.Context()
 pc.defineParameterGroup("indoorOTA", "Indoor OTA Resources")
 pc.defineParameterGroup("controlledRF", "Controlled RF Resources")
 
-indoorOtaX310s = [
-    ("ota-x310-%d" % (i,), "Indoor OTA X310 #%d" % (i,)) for i in range(1, 5) ]
 indoorOtaNucs = [
-    ("ota-nuc%d" % (i,), "Indoor OTA nuc#%d with B210" % (i,)) for i in range(1, 5) ]
+    ("nuc%d" % (i,), "nuc#%d with B210" % (i,)) for i in range(1, 5) ]
 anyIndoorRadios = [ ("", "") ]
-anyIndoorRadios.extend(indoorOtaX310s)
 anyIndoorRadios.extend(indoorOtaNucs)
 
 pc.defineStructParameter(
-    "indoorX310s", "Indoor OTA X310 with Server",
-    [], multiValue=True, itemDefaultValue={}, min=0, max=None,
-    members=[
-        portal.Parameter(
-            "fixedNodeId", "Indoor OTA X310", portal.ParameterType.STRING,
-            indoorOtaX310s[0], indoorOtaX310s),
-        portal.Parameter(
-            "nodeType", "Compute Node Type", portal.ParameterType.STRING,
-            "d430", [("d740", "POWDER, d740"), ("d430", "Emulab d430")]),
-        portal.Parameter(
-            "diskImage", "Compute Node Disk Image", portal.ParameterType.STRING,
-            GLOBALS.UBUNTU_2204_GR_IMG),
-        portal.Parameter(
-            "role", "Role", portal.ParameterType.STRING,
-            "NodeB", [("NodeB", "NodeB"), ("UE", "UE")]),
-        portal.Parameter(
-            "bindToNodeB", "Bind UE to NodeB", portal.ParameterType.STRING,
-            "", anyIndoorRadios,
-            longDescription="If this is a UE, add its IMSI only to the EPC of the selected NodeB.  Leave empty to map the IMSI to any of the NodeBs you are allocating."),
-        portal.Parameter(
-            "sharedVlanAddress", "Shared VLAN IP Address",
-            portal.ParameterType.STRING, "",
-            longDescription="Set the IP address for the shared VLAN interface.  Make sure you choose an unused address within the subnet of an existing shared vlan."),
-        portal.Parameter(
-            "dlFreq", "DL Frequency",
-            portal.ParameterType.STRING, "",
-            longDescription="Set the DL Frequency (e.g. 3435e6)."),
-        portal.Parameter(
-            "ulFreq", "UL Frequency",
-            portal.ParameterType.STRING, "",
-            longDescription="Set the UL Frequency (e.g. 3410e6)."),
-        portal.Parameter(
-            "prbs", "Number PRBs (if NodeB)",
-            portal.ParameterType.INTEGER, 25,
-            [(6, "1.4MHz"), (15, "3MHz"), (25, "5MHz"), (50, "10MHz"), (75, "15MHz"), (100, "20MHz")],
-            longDescription="Set the bandwidth in PRBs."),
-        portal.Parameter(
-            "dlMask", "DL RBG Mask (if NodeB)",
-            portal.ParameterType.STRING, "",
-            longDescription="Set the DL RBG mask as a bit string.  Do not set this unless you know what you are doing."),
-        portal.Parameter(
-            "ulMask", "UL PRB Mask (if NodeB)",
-            portal.ParameterType.STRING, "",
-            longDescription="Set the UL PRB mask as a bit string.  For instance, if you are operating at 25 PRB (5MHz) and have two NodeBs sharing one uplink band, you could give one a mask of 0x001fff, and the other 0xfffe000.  This would partition each NodeB into 12 PRBs on either side of the band, leaving 1 PRB unused in the middle as a guard.")
-    ],
-    groupId="indoorOTA")
-pc.defineStructParameter(
-    "indoorB210s", "Indoor OTA Nuc with B210",
+    "indoorB210s", "Nuc with B210",
     [], multiValue=True, min=0, max=None,
     members=[
         portal.Parameter(
-            "fixedNodeId", "Indoor OTA Nuc", portal.ParameterType.STRING,
+            "fixedNodeId", "Nuc", portal.ParameterType.STRING,
             indoorOtaNucs[0], indoorOtaNucs),
         portal.Parameter(
             "diskImage", "Disk Image", portal.ParameterType.STRING,
@@ -338,40 +288,6 @@ def add_nb_services(nb, nbIdx, ueTuples, radioKind, nbParams):
 
 nbs = dict()
 ueTuplesByNodeB = {"":[]}
-
-for x in params.indoorX310s:
-    if x.role == "UE":
-        ueIndex += 1
-    else:
-        nbIndex += 1
-    node = request.RawPC("{}-comp".format(x.fixedNodeId))
-    node.hardware_type = x.nodeType
-    node.disk_image = x.diskImage
-    node.component_manager_id = GLOBALS.POWDER_CM_ID
-    node_radio_if = node.addInterface(node.name + "-usrp-if")
-    node_radio_if.addAddress(
-        rspec.IPv4Address("192.168.40.1", "255.255.255.0"))
-    radio_link = request.Link(node.name + "-radio-link")
-    radio_link.bandwidth = 10*1000*1000
-    radio_link.addInterface(node_radio_if)
-    radio = request.RawPC(x.fixedNodeId)
-    radio.component_id = x.fixedNodeId
-    radio.component_manager_id = GLOBALS.POWDER_CM_ID
-    radio_link.addNode(radio)
-
-    if x.role == "NodeB":
-        nbs[x.fixedNodeId] = (node, nbIndex, "x310", x)
-        if params.sharedVlanName:
-            sva = x.sharedVlanAddress
-            if not sva:
-                sva = next_ipv4_addr(params.oranAddress, params.sharedVlanNetmask, nbIndex)
-            connect_shared_vlan(node, params.sharedVlanName, sva, params.sharedVlanNetmask)
-    elif x.role == "UE":
-        ueTuple = makeUeTuple(ueIndex)
-        if x.bindToNodeB not in ueTuplesByNodeB:
-            ueTuplesByNodeB[x.bindToNodeB] = []
-        ueTuplesByNodeB[x.bindToNodeB].append(ueTuple)
-        add_ue_services(node, ueTuple, "x310", x)
 
 for x in params.indoorB210s:
     if x.role == "UE":
